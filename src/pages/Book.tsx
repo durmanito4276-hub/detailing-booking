@@ -8,21 +8,21 @@ function addDays(d: Date, n: number): Date {
   const x = new Date(d); x.setDate(x.getDate() + n); return x
 }
 function fmtDay(d: Date): string {
-  return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })
+  return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 export default function Book() {
   const { tenant = '' } = useParams()
   const navigate = useNavigate()
 
-const { data: t, isLoading: tLoad } = useQuery({ queryKey: ['tenant', tenant], queryFn: () => fetchTenant(tenant) })
+  const { data: t, isLoading: tLoad } = useQuery({ queryKey: ['tenant', tenant], queryFn: () => fetchTenant(tenant) })
   const tenantId = t?.id ?? ''
   const { data: services } = useQuery({ queryKey: ['services', tenantId], queryFn: () => fetchServices(tenantId), enabled: !!tenantId })
   const { data: bays } = useQuery({ queryKey: ['bays', tenantId], queryFn: () => fetchBays(tenantId), enabled: !!tenantId })
   const { data: photos } = useQuery({ queryKey: ['photos', tenantId], queryFn: () => fetchPhotos(tenantId), enabled: !!tenantId })
   const { data: cards } = useQuery({ queryKey: ['cards', tenantId], queryFn: () => fetchInfoCards(tenantId), enabled: !!tenantId })
 
-const [tab, setTab] = useState<'home' | 'services' | 'booking'>('home')
+  const [tab, setTab] = useState<'home' | 'services' | 'booking'>('home')
   const [serviceIdx, setServiceIdx] = useState<number | null>(null)
   const [dayOffset, setDayOffset] = useState(0)
   const [bayIdx, setBayIdx] = useState<number | null>(null)
@@ -33,26 +33,27 @@ const [tab, setTab] = useState<'home' | 'services' | 'booking'>('home')
   const [sending, setSending] = useState(false)
   const [errMsg, setErrMsg] = useState('')
 
-const day = useMemo(() => addDays(new Date(), dayOffset), [dayOffset])
+  const day = useMemo(() => addDays(new Date(), dayOffset), [dayOffset])
   const service = serviceIdx !== null && services ? services[serviceIdx] : undefined
   const bay = bayIdx !== null && bays ? bays[bayIdx] : undefined
   const duration = service?.duration_minutes ?? 60
   const minPrice = services && services.length ? Math.min(...services.map(s => s.price)) : 0
 
-const { data: busy } = useQuery({
+  const { data: busy } = useQuery({
     queryKey: ['busy', bay?.id ?? '', day.toDateString()],
     queryFn: () => fetchBusy(bay!.id, day),
     enabled: !!bay,
   })
 
-const slots = useMemo(() => slotsForDay(day, duration), [day, duration])
+  const slots = useMemo(() => slotsForDay(day, duration), [day, duration])
 
-function scrollTo(id: string, newTab: typeof tab) {
+  function scrollTo(id: string, newTab: 'home' | 'services' | 'booking') {
     setTab(newTab)
+    if (id === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-async function submit() {
+  async function submit() {
     if (!service || !bay || !slot || !tenantId) return
     if (!name.trim() || !phone.trim() || !car.trim()) {
       setErrMsg('Заполните имя, телефон и автомобиль'); return
@@ -76,14 +77,13 @@ async function submit() {
     } finally { setSending(false) }
   }
 
-if (tLoad) return <main className="container"><p className="muted">Загрузка…</p></main>
+  if (tLoad) return <main className="container"><p className="muted">Загрузка…</p></main>
   if (!t) return <main className="container"><h1>Студия не найдена</h1><Link className="btn" to="/">На главную</Link></main>
 
-const hero = t.settings?.heroImage
+  const hero = (t.settings as Record<string, string | undefined>)?.heroImage
 
-return (
+  return (
     <main className="page">
-      {/* ===== ШАПКА ===== */}
       <header className="app-header">
         <div className="brand">
           <div className="brand-dot" />
@@ -93,7 +93,6 @@ return (
       </header>
       <div className="divider" />
 
-{/* ===== HERO-КАРТОЧКА С PORSCHE ===== */}
       {hero && (
         <section className="hero">
           <div className="hero-img-wrap">
@@ -110,8 +109,7 @@ return (
         </section>
       )}
 
-<div className="container">
-        {/* ===== СТАТИСТИКА ===== */}
+      <div className="container">
         <div className="stats-row">
           <div className="stat-card">
             <strong>{services?.length ?? 0}</strong>
@@ -127,7 +125,6 @@ return (
           </div>
         </div>
 
-{/* ===== ИНФО-КАРТОЧКИ ===== */}
         {cards && cards.length > 0 && (
           <div className="info-row">
             {cards.map((c) => (
@@ -139,7 +136,6 @@ return (
           </div>
         )}
 
-{/* ===== УСЛУГИ ===== */}
         <section id="services">
           <h2 className="section-title">Услуги</h2>
           <div className="service-list">
@@ -160,7 +156,6 @@ return (
           </div>
         </section>
 
-{/* ===== ГАЛЕРЕЯ ===== */}
         {photos && photos.length > 0 && (
           <section>
             <h2 className="section-title">Наши работы</h2>
@@ -175,11 +170,10 @@ return (
           </section>
         )}
 
-{/* ===== ЗАПИСЬ ===== */}
         <section id="booking">
           <h2 className="booking-title">Запись в студию</h2>
 
-<div className="step-label">1. Выберите услугу</div>
+          <div className="step-label">1. Выберите услугу</div>
           <div className="chip-row">
             {(services ?? []).map((s, i) => (
               <button key={s.id}
@@ -190,7 +184,7 @@ return (
             ))}
           </div>
 
-{service && (
+          {service && (
             <>
               <div className="step-label">2. День</div>
               <div className="chip-row">
@@ -209,7 +203,7 @@ return (
             </>
           )}
 
-{service && (bays ?? []).length > 0 && (
+          {service && (bays ?? []).length > 0 && (
             <>
               <div className="step-label">3. Бокс</div>
               <div className="chip-row">
@@ -224,7 +218,7 @@ return (
             </>
           )}
 
-{service && bay && (
+          {service && bay && (
             <>
               <div className="step-label">4. Время <span className="hint">— серым занятое</span></div>
               {busy === undefined ? <p className="muted">Проверяем занятость…</p> : (
@@ -245,7 +239,7 @@ return (
             </>
           )}
 
-{service && bay && slot && (
+          {service && bay && slot && (
             <>
               <div className="step-label">5. Ваши данные</div>
               <div className="card">
@@ -264,7 +258,6 @@ return (
           )}
         </section>
 
-{/* ===== КОНТАКТЫ ===== */}
         <section className="contacts">
           <h2 className="section-title">Как нас найти</h2>
           <p className="muted">📍 {t.settings.address}</p>
@@ -273,9 +266,8 @@ return (
         </section>
       </div>
 
-{/* ===== НИЖНЯЯ НАВИГАЦИЯ ===== */}
       <nav className="bottom-nav">
-        <button className={tab === 'home' ? 'nav-item active' : 'nav-item'} onClick={() => scrollTo('top-anchor', 'home')}>
+        <button className={tab === 'home' ? 'nav-item active' : 'nav-item'} onClick={() => scrollTo('top', 'home')}>
           <span className="nav-icon">🏠</span>Главная
         </button>
         <button className={tab === 'services' ? 'nav-item active' : 'nav-item'} onClick={() => scrollTo('services', 'services')}>
@@ -285,7 +277,6 @@ return (
           <span className="nav-icon">📅</span>Моя запись
         </button>
       </nav>
-      <div id="top-anchor" />
     </main>
   )
 }
