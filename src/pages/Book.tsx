@@ -8,20 +8,21 @@ function addDays(d: Date, n: number): Date {
   const x = new Date(d); x.setDate(x.getDate() + n); return x
 }
 function fmtDay(d: Date): string {
-  return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })
+  return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })
 }
 
 export default function Book() {
   const { tenant = '' } = useParams()
   const navigate = useNavigate()
 
-  const { data: t, isLoading: tLoad } = useQuery({ queryKey: ['tenant', tenant], queryFn: () => fetchTenant(tenant) })
+const { data: t, isLoading: tLoad } = useQuery({ queryKey: ['tenant', tenant], queryFn: () => fetchTenant(tenant) })
   const tenantId = t?.id ?? ''
   const { data: services } = useQuery({ queryKey: ['services', tenantId], queryFn: () => fetchServices(tenantId), enabled: !!tenantId })
   const { data: bays } = useQuery({ queryKey: ['bays', tenantId], queryFn: () => fetchBays(tenantId), enabled: !!tenantId })
   const { data: photos } = useQuery({ queryKey: ['photos', tenantId], queryFn: () => fetchPhotos(tenantId), enabled: !!tenantId })
   const { data: cards } = useQuery({ queryKey: ['cards', tenantId], queryFn: () => fetchInfoCards(tenantId), enabled: !!tenantId })
 
+const [tab, setTab] = useState<'home' | 'services' | 'booking'>('home')
   const [serviceIdx, setServiceIdx] = useState<number | null>(null)
   const [dayOffset, setDayOffset] = useState(0)
   const [bayIdx, setBayIdx] = useState<number | null>(null)
@@ -32,24 +33,29 @@ export default function Book() {
   const [sending, setSending] = useState(false)
   const [errMsg, setErrMsg] = useState('')
 
-  const day = useMemo(() => addDays(new Date(), dayOffset), [dayOffset])
+const day = useMemo(() => addDays(new Date(), dayOffset), [dayOffset])
   const service = serviceIdx !== null && services ? services[serviceIdx] : undefined
   const bay = bayIdx !== null && bays ? bays[bayIdx] : undefined
   const duration = service?.duration_minutes ?? 60
+  const minPrice = services && services.length ? Math.min(...services.map(s => s.price)) : 0
 
-  const { data: busy } = useQuery({
+const { data: busy } = useQuery({
     queryKey: ['busy', bay?.id ?? '', day.toDateString()],
     queryFn: () => fetchBusy(bay!.id, day),
     enabled: !!bay,
   })
 
-  const slots = useMemo(() => slotsForDay(day, duration), [day, duration])
+const slots = useMemo(() => slotsForDay(day, duration), [day, duration])
 
-  async function submit() {
+function scrollTo(id: string, newTab: typeof tab) {
+    setTab(newTab)
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+async function submit() {
     if (!service || !bay || !slot || !tenantId) return
     if (!name.trim() || !phone.trim() || !car.trim()) {
-      setErrMsg('Заполните имя, телефон и автомобиль')
-      return
+      setErrMsg('Заполните имя, телефон и автомобиль'); return
     }
     setSending(true); setErrMsg('')
     try {
@@ -64,131 +70,222 @@ export default function Book() {
       const msg = String((e as Error).message ?? e)
       setErrMsg(
         msg.includes('no_time_overlap') || msg.includes('duplicate')
-          ? 'Увы, это время только что заняли. Выберите другое.'
+          ? 'Это время только что заняли. Выберите другое.'
           : 'Не удалось создать запись. Попробуйте ещё раз.'
       )
-    } finally {
-      setSending(false)
-    }
+    } finally { setSending(false) }
   }
 
-  if (tLoad) return <main className="container"><p className="muted">Загрузка…</p></main>
+if (tLoad) return <main className="container"><p className="muted">Загрузка…</p></main>
   if (!t) return <main className="container"><h1>Студия не найдена</h1><Link className="btn" to="/">На главную</Link></main>
 
-  return (
-    <main className="container">
-      <h1>{t.name}</h1>
-      {t.settings.about && <p className="muted">{t.settings.about}</p>}
+const hero = t.settings?.heroImage
 
-      {cards && cards.length > 0 && (
-        <div className="card">
-          {cards.map((c) => (
-            <p key={c.id}><strong>{c.title}:</strong> <span className="muted">{c.body}</span></p>
-          ))}
+return (
+    <main className="page">
+      {/* ===== ШАПКА ===== */}
+      <header className="app-header">
+        <div className="brand">
+          <div className="brand-dot" />
+          <span className="brand-name">{t.name}</span>
         </div>
-      )}
+        <div className="avatar">A</div>
+      </header>
+      <div className="divider" />
 
-      <h2>1. Услуга</h2>
-      {(services ?? []).map((s, i) => (
-        <button key={s.id}
-          className="card" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'block',
-            borderColor: serviceIdx === i ? 'var(--accent)' : 'var(--border)', background: 'var(--card)', color: 'var(--text)' }}
-          onClick={() => { setServiceIdx(i); setSlot(null); setBayIdx(null) }}>
-          {s.name} — {s.price.toLocaleString('ru-RU')} ₽ · {Math.round(s.duration_minutes / 60)} ч
-        </button>
-      ))}
-
-      {service && (
-        <>
-          <h2>2. День</h2>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[0, 1, 2, 3, 4, 5, 6].map((n) => {
-              const d = addDays(new Date(), n)
-              const hasSlots = slotsForDay(d, duration).length > 0
-              return (
-                <button key={n} disabled={!hasSlots}
-                  className="card" style={{ flex: '1 1 80px', textAlign: 'center', cursor: 'pointer',
-                    borderColor: dayOffset === n ? 'var(--accent)' : 'var(--border)',
-                    background: 'var(--card)', color: 'var(--text)', padding: '10px 4px' }}
-                  onClick={() => { setDayOffset(n); setSlot(null); setBayIdx(null) }}>
-                  {fmtDay(d)}
-                </button>
-              )
-            })}
+{/* ===== HERO-КАРТОЧКА С PORSCHE ===== */}
+      {hero && (
+        <section className="hero">
+          <div className="hero-img-wrap">
+            <img src={hero} alt={t.name} />
+            <div className="hero-overlay" />
+            <div className="hero-glow" />
+            <h1 className="hero-title">{t.name}</h1>
+            {t.settings.about && <p className="hero-sub">{t.settings.about}</p>}
+            <button className="book-btn" onClick={() => scrollTo('booking', 'booking')}>
+              <span>Записаться</span>
+              <span className="arrow">→</span>
+            </button>
           </div>
-        </>
+        </section>
       )}
 
-      {service && (bays ?? []).length > 0 && (
-        <>
-          <h2>3. Бокс</h2>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {bays!.map((b, i) => (
-              <button key={b.id}
-                className="card" style={{ cursor: 'pointer',
-                  borderColor: bayIdx === i ? 'var(--accent)' : 'var(--border)',
-                  background: 'var(--card)', color: 'var(--text)', padding: '10px 16px' }}
-                onClick={() => { setBayIdx(i); setSlot(null) }}>
-                {b.name}
+<div className="container">
+        {/* ===== СТАТИСТИКА ===== */}
+        <div className="stats-row">
+          <div className="stat-card">
+            <strong>{services?.length ?? 0}</strong>
+            <span>Услуги</span>
+          </div>
+          <div className="stat-card">
+            <strong>{bays?.length ?? 0}</strong>
+            <span>Бокса</span>
+          </div>
+          <div className="stat-card wide">
+            <strong>От {minPrice.toLocaleString('ru-RU')} ₽</strong>
+            <span>за услугу</span>
+          </div>
+        </div>
+
+{/* ===== ИНФО-КАРТОЧКИ ===== */}
+        {cards && cards.length > 0 && (
+          <div className="info-row">
+            {cards.map((c) => (
+              <div key={c.id} className="info-card">
+                <strong>{c.title}</strong>
+                <span>{c.body}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+{/* ===== УСЛУГИ ===== */}
+        <section id="services">
+          <h2 className="section-title">Услуги</h2>
+          <div className="service-list">
+            {(services ?? []).map((s, i) => (
+              <button key={s.id}
+                className={serviceIdx === i ? 'service-item selected' : 'service-item'}
+                onClick={() => { setServiceIdx(i); setSlot(null); setBayIdx(null) }}>
+                <div className="service-info">
+                  <div className="service-name">{s.name}</div>
+                  <div className="service-dur">{Math.round(s.duration_minutes / 60)} ч</div>
+                </div>
+                <div className="service-right">
+                  <div className="service-price">{s.price.toLocaleString('ru-RU')} ₽</div>
+                  <span className="mini-book">Записаться</span>
+                </div>
               </button>
             ))}
           </div>
-        </>
-      )}
+        </section>
 
-      {service && bay && (
-        <>
-          <h2>4. Время</h2>
-          {busy === undefined ? <p className="muted">Проверяем занятость…</p> : (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {slots.map((s) => {
-                const busySlot = slotBusy(s, duration, busy ?? [])
-                return (
-                  <button key={s.getTime()} disabled={busySlot}
-                    className="card" style={{ cursor: busySlot ? 'not-allowed' : 'pointer', opacity: busySlot ? 0.4 : 1,
-                      borderColor: slot?.getTime() === s.getTime() ? 'var(--accent)' : 'var(--border)',
-                      background: 'var(--card)', color: 'var(--text)', padding: '10px 14px' }}
-                    onClick={() => setSlot(s)}>
-                    {fmtTime(s)}{busySlot ? ' (занято)' : ''}
-                  </button>
-                )
-              })}
-              {slots.length === 0 && <p className="muted">Нет доступных слотов (услуга до {CLOSE_HOUR}:00 не помещается).</p>}
+{/* ===== ГАЛЕРЕЯ ===== */}
+        {photos && photos.length > 0 && (
+          <section>
+            <h2 className="section-title">Наши работы</h2>
+            <div className="gallery">
+              {photos.map((p) => (
+                <figure key={p.id}>
+                  <img src={p.url} alt={p.caption} loading="lazy" />
+                  <figcaption>{p.caption}</figcaption>
+                </figure>
+              ))}
             </div>
-          )}
-        </>
-      )}
+          </section>
+        )}
 
-      {service && bay && slot && (
-        <>
-          <h2>5. Ваши данные</h2>
-          <label>Имя<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Иван" /></label>
-          <label>Телефон<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 123-45-67" inputMode="tel" /></label>
-          <label>Автомобиль<input value={car} onChange={(e) => setCar(e.target.value)} placeholder="BMW X5, чёрный" /></label>
-          <div className="card">
-            <p><strong>{service.name}</strong></p>
-            <p className="muted">{bay.name} · {fmtDay(day)} в {fmtTime(slot)} · {service.price.toLocaleString('ru-RU')} ₽</p>
+{/* ===== ЗАПИСЬ ===== */}
+        <section id="booking">
+          <h2 className="booking-title">Запись в студию</h2>
+
+<div className="step-label">1. Выберите услугу</div>
+          <div className="chip-row">
+            {(services ?? []).map((s, i) => (
+              <button key={s.id}
+                className={serviceIdx === i ? 'chip selected' : 'chip'}
+                onClick={() => { setServiceIdx(i); setSlot(null); setBayIdx(null) }}>
+                {s.name}
+              </button>
+            ))}
           </div>
-          {errMsg && <p className="error">{errMsg}</p>}
-          <button className="btn" onClick={submit} disabled={sending}>
-            {sending ? 'Отправляем…' : 'Записаться'}
-          </button>
-        </>
-      )}
 
-      {photos && photos.length > 0 && (
-        <>
-          <h2>Наши работы</h2>
-          {photos.map((p) => (
-            <div key={p.id} className="card">
-              <img src={p.url} alt={p.caption} style={{ width: '100%', borderRadius: '10px' }} />
-              <p className="muted">{p.caption}</p>
-            </div>
-          ))}
-        </>
-      )}
+{service && (
+            <>
+              <div className="step-label">2. День</div>
+              <div className="chip-row">
+                {[0, 1, 2, 3, 4, 5, 6].map((n) => {
+                  const d = addDays(new Date(), n)
+                  const hasSlots = slotsForDay(d, duration).length > 0
+                  return (
+                    <button key={n} disabled={!hasSlots}
+                      className={dayOffset === n ? 'chip selected' : 'chip'}
+                      onClick={() => { setDayOffset(n); setSlot(null); setBayIdx(null) }}>
+                      {fmtDay(d)}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
-      {t.settings.phone && <p className="muted">Вопросы? Звоните: {t.settings.phone}</p>}
+{service && (bays ?? []).length > 0 && (
+            <>
+              <div className="step-label">3. Бокс</div>
+              <div className="chip-row">
+                {bays!.map((b, i) => (
+                  <button key={b.id}
+                    className={bayIdx === i ? 'chip selected' : 'chip'}
+                    onClick={() => { setBayIdx(i); setSlot(null) }}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+{service && bay && (
+            <>
+              <div className="step-label">4. Время <span className="hint">— серым занятое</span></div>
+              {busy === undefined ? <p className="muted">Проверяем занятость…</p> : (
+                <div className="chip-row">
+                  {slots.map((s) => {
+                    const busySlot = slotBusy(s, duration, busy ?? [])
+                    return (
+                      <button key={s.getTime()} disabled={busySlot}
+                        className={slot?.getTime() === s.getTime() ? 'chip selected' : busySlot ? 'chip busy' : 'chip'}
+                        onClick={() => setSlot(s)}>
+                        {fmtTime(s)}
+                      </button>
+                    )
+                  })}
+                  {slots.length === 0 && <p className="muted">Нет свободных слотов — услуга до {CLOSE_HOUR}:00 не помещается.</p>}
+                </div>
+              )}
+            </>
+          )}
+
+{service && bay && slot && (
+            <>
+              <div className="step-label">5. Ваши данные</div>
+              <div className="card">
+                <label>Имя<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Иван" /></label>
+                <label>Телефон<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 123-45-67" inputMode="tel" /></label>
+                <label>Автомобиль<input value={car} onChange={(e) => setCar(e.target.value)} placeholder="BMW X5, чёрный" /></label>
+                <p className="muted summary">
+                  {service.name} · {bay.name} · {fmtDay(day)} в {fmtTime(slot)} · {service.price.toLocaleString('ru-RU')} ₽
+                </p>
+                {errMsg && <p className="error">{errMsg}</p>}
+                <button className="btn" onClick={submit} disabled={sending}>
+                  {sending ? 'Отправляем…' : 'Подтвердить запись'}
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+
+{/* ===== КОНТАКТЫ ===== */}
+        <section className="contacts">
+          <h2 className="section-title">Как нас найти</h2>
+          <p className="muted">📍 {t.settings.address}</p>
+          <p className="muted">🕘 Пн–Сб 10:00–20:00, Вс — выходной</p>
+          {t.settings.phone && <p className="muted">📞 {t.settings.phone}</p>}
+        </section>
+      </div>
+
+{/* ===== НИЖНЯЯ НАВИГАЦИЯ ===== */}
+      <nav className="bottom-nav">
+        <button className={tab === 'home' ? 'nav-item active' : 'nav-item'} onClick={() => scrollTo('top-anchor', 'home')}>
+          <span className="nav-icon">🏠</span>Главная
+        </button>
+        <button className={tab === 'services' ? 'nav-item active' : 'nav-item'} onClick={() => scrollTo('services', 'services')}>
+          <span className="nav-icon">🛠</span>Услуги
+        </button>
+        <button className={tab === 'booking' ? 'nav-item active' : 'nav-item'} onClick={() => scrollTo('booking', 'booking')}>
+          <span className="nav-icon">📅</span>Моя запись
+        </button>
+      </nav>
+      <div id="top-anchor" />
     </main>
   )
 }
