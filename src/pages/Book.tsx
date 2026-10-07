@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { fetchTenant, fetchServices, fetchBays, fetchPhotos, fetchInfoCards } from '../api'
@@ -14,6 +14,7 @@ function fmtDay(d: Date): string {
 export default function Book() {
   const { tenant = '' } = useParams()
   const navigate = useNavigate()
+  const rootRef = useRef<HTMLElement>(null)
 
   const { data: t, isLoading: tLoad } = useQuery({ queryKey: ['tenant', tenant], queryFn: () => fetchTenant(tenant) })
   const tenantId = t?.id ?? ''
@@ -32,6 +33,40 @@ export default function Book() {
   const [car, setCar] = useState('')
   const [sending, setSending] = useState(false)
   const [errMsg, setErrMsg] = useState('')
+
+  // ===== СЛЕД-ТОЧКА ЗА КУРСОРОМ (только для мыши) =====
+  useEffect(() => {
+    const dot = document.createElement('div'); dot.className = 'cursor-dot'
+    const ring = document.createElement('div'); ring.className = 'cursor-ring'
+    document.body.append(dot, ring)
+    let rx = 0, ry = 0, tx = 0, ty = 0, raf = 0
+    const onMove = (e: MouseEvent) => {
+      tx = e.clientX; ty = e.clientY
+      dot.style.transform = `translate(${tx - 5}px, ${ty - 5}px)`
+      const target = e.target as HTMLElement
+      const interactive = !!target.closest('button, a, .service-item, .chip, .avatar, input')
+      ring.style.width = interactive ? '48px' : '34px'
+      ring.style.height = interactive ? '48px' : '34px'
+    }
+    const loop = () => {
+      rx += (tx - rx) * 0.16; ry += (ty - ry) * 0.16
+      ring.style.transform = `translate(${rx - (parseFloat(ring.style.width || '34') / 2)}px, ${ry - (parseFloat(ring.style.height || '34') / 2)}px)`
+      raf = requestAnimationFrame(loop)
+    }
+    window.addEventListener('mousemove', onMove)
+    raf = requestAnimationFrame(loop)
+    return () => { window.removeEventListener('mousemove', onMove); cancelAnimationFrame(raf); dot.remove(); ring.remove() }
+  }, [])
+
+  // ===== ПЛАВНОЕ ПОЯВЛЕНИЕ СЕКЦИЙ ПРИ ПРОКРУТКЕ/СВАЙПЕ =====
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('visible'); io.unobserve(en.target) } }),
+      { threshold: 0.08 }
+    )
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [t, services, photos, cards])
 
   const day = useMemo(() => addDays(new Date(), dayOffset), [dayOffset])
   const service = serviceIdx !== null && services ? services[serviceIdx] : undefined
@@ -52,12 +87,13 @@ export default function Book() {
     if (id === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+  function scrollToContacts() {
+    document.getElementById('contacts')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   async function submit() {
     if (!service || !bay || !slot || !tenantId) return
-    if (!name.trim() || !phone.trim() || !car.trim()) {
-      setErrMsg('Заполните имя, телефон и автомобиль'); return
-    }
+    if (!name.trim() || !phone.trim() || !car.trim()) { setErrMsg('Заполните имя, телефон и автомобиль'); return }
     setSending(true); setErrMsg('')
     try {
       const key = crypto.randomUUID()
@@ -83,18 +119,18 @@ export default function Book() {
   const hero = (t.settings as Record<string, string | undefined>)?.heroImage
 
   return (
-    <main className="page">
+    <main className="page" ref={rootRef}>
       <header className="app-header">
-        <div className="brand">
+        <div className="brand" onClick={() => scrollTo('top', 'home')} title="Наверх">
           <div className="brand-dot" />
           <span className="brand-name">{t.name}</span>
         </div>
-        <div className="avatar">A</div>
+        <div className="avatar" onClick={scrollToContacts} title="Контакты студии">A</div>
       </header>
       <div className="divider" />
 
       {hero && (
-        <section className="hero">
+        <section className="hero reveal">
           <div className="hero-img-wrap">
             <img src={hero} alt={t.name} />
             <div className="hero-overlay" />
@@ -110,25 +146,25 @@ export default function Book() {
       )}
 
       <div className="container">
-        <div className="stats-row">
-          <div className="stat-card">
+        <div className="stats-row reveal">
+          <div className="stat-card" onClick={() => scrollTo('services', 'services')} title="Перейти к услугам">
             <strong>{services?.length ?? 0}</strong>
             <span>Услуги</span>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" onClick={() => scrollTo('booking', 'booking')} title="Перейти к записи">
             <strong>{bays?.length ?? 0}</strong>
             <span>Бокса</span>
           </div>
-          <div className="stat-card wide">
+          <div className="stat-card wide" onClick={() => scrollTo('services', 'services')} title="Смотреть прайс">
             <strong>От {minPrice.toLocaleString('ru-RU')} ₽</strong>
             <span>за услугу</span>
           </div>
         </div>
 
         {cards && cards.length > 0 && (
-          <div className="info-row">
+          <div className="info-row reveal">
             {cards.map((c) => (
-              <div key={c.id} className="info-card">
+              <div key={c.id} className="info-card" title={c.title}>
                 <strong>{c.title}</strong>
                 <span>{c.body}</span>
               </div>
@@ -136,13 +172,13 @@ export default function Book() {
           </div>
         )}
 
-        <section id="services">
+        <section id="services" className="reveal">
           <h2 className="section-title">Услуги</h2>
           <div className="service-list">
             {(services ?? []).map((s, i) => (
               <button key={s.id}
                 className={serviceIdx === i ? 'service-item selected' : 'service-item'}
-                onClick={() => { setServiceIdx(i); setSlot(null); setBayIdx(null) }}>
+                onClick={() => { setServiceIdx(i); setSlot(null); setBayIdx(null); document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>
                 <div className="service-info">
                   <div className="service-name">{s.name}</div>
                   <div className="service-dur">{Math.round(s.duration_minutes / 60)} ч</div>
@@ -157,7 +193,7 @@ export default function Book() {
         </section>
 
         {photos && photos.length > 0 && (
-          <section>
+          <section className="reveal">
             <h2 className="section-title">Наши работы</h2>
             <div className="gallery">
               {photos.map((p) => (
@@ -170,7 +206,7 @@ export default function Book() {
           </section>
         )}
 
-        <section id="booking">
+        <section id="booking" className="reveal">
           <h2 className="booking-title">Запись в студию</h2>
 
           <div className="step-label">1. Выберите услугу</div>
@@ -258,7 +294,7 @@ export default function Book() {
           )}
         </section>
 
-        <section className="contacts">
+        <section id="contacts" className="contacts reveal">
           <h2 className="section-title">Как нас найти</h2>
           <p className="muted">📍 {t.settings.address}</p>
           <p className="muted">🕘 Пн–Сб 10:00–20:00, Вс — выходной</p>
