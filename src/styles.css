@@ -1,56 +1,112 @@
 :root {
   color-scheme: dark;
   --bg: #0a0a0a;
-  --card: #141414;
-  --border: #262626;
+  --bg2: #101114;
+  --card: #16181d;
+  --border: #23262e;
   --accent: #4690ff;
-  --text: #f5f5f5;
-  --muted: #a3a3a3;
+  --accent-soft: rgba(70, 144, 255, 0.12);
+  --text: #f5f6f8;
+  --muted: #9aa0aa;
+  --radius: 16px;
 }
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-height: 100%; }
 body {
-  background: var(--bg);
+  background: linear-gradient(180deg, var(--bg2), var(--bg) 320px);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.5;
-  font-size: 16px;
+  font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
+
+.container { max-width: 680px; margin: 0 auto; padding: 20px 16px 64px; }
+
+h1 { font-size: 28px; margin: 16px 0 6px; letter-spacing: -0.4px; }
+h2 { font-size: 16px; margin: 26px 0 10px; color: var(--muted);
+     font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; font-size: 13px; }
+p { margin: 6px 0; }
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: var(--radius);
+  padding: 16px 18px;
   margin: 10px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s, transform 0.15s;
 }
-.container { max-width: 640px; margin: 0 auto; padding: 16px; }
-.muted { color: var(--muted); }
-h1 { font-size: 24px; margin: 8px 0; }
-h2 { font-size: 18px; margin: 8px 0; }
+
+/* Кликабельные карточки (услуги, дни, боксы, время) */
+button.card {
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+  font-size: 16px;
+  font-family: inherit;
+  width: 100%;
+}
+button.card:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+button.card:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Главная кнопка */
 .btn {
-  display: inline-block;
-  background: var(--accent);
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, #4690ff, #2f6fd6);
   color: #fff;
   border: none;
-  border-radius: 12px;
-  padding: 12px 20px;
+  border-radius: 14px;
+  padding: 14px 20px;
   font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
-  width: 100%;
+  margin: 14px 0;
+  box-shadow: 0 8px 24px rgba(70, 144, 255, 0.25);
+  transition: box-shadow 0.15s, transform 0.15s;
 }
-.btn.secondary { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+.btn:hover:not(:disabled) { box-shadow: 0 10px 30px rgba(70, 144, 255, 0.4); transform: translateY(-1px); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.secondary {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  box-shadow: none;
+  font-weight: 500;
+}
+.btn.secondary:hover:not(:disabled) { border-color: var(--accent); box-shadow: none; }
+
+.muted { color: var(--muted); }
+
 input, select, textarea {
   width: 100%;
-  background: var(--card);
+  background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
-  padding: 12px;
+  padding: 13px 14px;
   font-size: 16px;
+  font-family: inherit;
+  margin-top: 6px;
 }
-label { display: block; margin: 12px 0 6px; font-size: 14px; color: var(--muted); }
-.error { color: #ff6b6b; }
-.success { color: #51cf66; }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+label { display: block; margin: 14px 0 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+.error { color: #ff6b6b; background: rgba(255,107,107,0.08);
+  border-radius: 10px; padding: 10px 14px; }
+.success { color: #51cf66; background: rgba(81,207,102,0.08);
+  border-radius: 10px; padding: 10px 14px; }
+
+img { max-width: 100%; display: block; border-radius: 12px; }
+
+/* Плавное появление без анимаций у тех, кто их отключил */
+@media (prefers-reduced-motion: no-preference) {
+  .card, .btn { animation: fade-up 0.35s ease both; }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
